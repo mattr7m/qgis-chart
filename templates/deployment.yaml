@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qgis
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qgis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qgis
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ .Release.Name }}-qgis
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: qgis
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: NB_USER
+              value: {{ .Values.jupyter.nbUser | quote }}
+            - name: NB_UID
+              value: {{ .Values.jupyter.nbUid | quote }}
+            - name: NB_GID
+              value: {{ .Values.jupyter.nbGid | quote }}
+            - name: CHOWN_HOME
+              value: {{ .Values.jupyter.chownHome | quote }}
+            - name: JUPYTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jupyter.authTokenSecretName }}
+                  key: {{ .Values.jupyter.authTokenSecretKey }}
+          ports:
+            - name: http
+              containerPort: 8888
+              protocol: TCP
+          volumeMounts:
+            - name: home
+              mountPath: /home/{{ .Values.jupyter.nbUser }}
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: qgis-home

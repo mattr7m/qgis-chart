@@ -1,0 +1,40 @@
+image:
+  repository: glcr.b-data.ch/jupyterlab/qgis/base
+  tag: ltr
+  pullPolicy: IfNotPresent
+
+jupyter:
+  nbUser: qgis
+  nbUid: 1000
+  nbGid: 1000
+  chownHome: true
+  authTokenSecretName: jupyterlab-token
+  authTokenSecretKey: token
+
+service:
+  type: ClusterIP
+  port: 8888
+  mcp:
+    enabled: false
+    port: 5678
+
+ingress:
+  enabled: true
+  host: qgis.example.local
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls: true
+
+pvc:
+  enabled: true
+  size: 10Gi
+  storageClassName: rook-cephfs
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
