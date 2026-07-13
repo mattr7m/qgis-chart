@@ -21,6 +21,62 @@ spec:
       serviceAccountName: {{ .Release.Name }}-qgis
       securityContext:
         fsGroup: 1000
+      {{- if .Values.mcp.initContainer.enabled }}
+      initContainers:
+        - name: mcp-init
+          image: "{{ .Values.mcp.initContainer.image }}:{{ .Values.mcp.initContainer.tag }}"
+          imagePullPolicy: {{ .Values.mcp.initContainer.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              NB_USER={{ .Values.jupyter.nbUser }}
+              HOME_DIR=/home/${NB_USER}
+              PLUGINS_DIR=${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default/python/plugins
+              SETTINGS_DIR=${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default
+
+              # 1) Clone qgis-mcp plugin into the profile plugins dir
+              TMP_PLUGINS=$(mktemp -d)
+              git clone --depth 1 {{ .Values.mcp.initContainer.pluginRepo }} ${TMP_PLUGINS}/qgis-mcp
+              mkdir -p ${PLUGINS_DIR}/qgis_mcp_plugin
+              cp -r ${TMP_PLUGINS}/qgis-mcp/qgis_mcp_plugin/* ${PLUGINS_DIR}/qgis_mcp_plugin/
+              rm -rf ${TMP_PLUGINS}
+
+              # 2) Pre-seed QgsSettings into QGIS3.ini (belt + suspenders)
+              INI_FILE=${SETTINGS_DIR}/QGIS3.ini
+              mkdir -p ${SETTINGS_DIR}
+              touch ${INI_FILE}
+
+              # Write the qgis_mcp section with autostart and port
+              if ! grep -q '^\[QGIS\]/qgis_mcp' ${INI_FILE}; then
+                echo '' >> ${INI_FILE}
+                echo '[QGIS]/qgis_mcp' >> ${INI_FILE}
+                echo 'autostart=true' >> ${INI_FILE}
+                echo 'port=9876' >> ${INI_FILE}
+              fi
+
+              # 3) Drop startup.py fallback into the profile directory
+              printf '%s\n' \
+                'from qgis.PyQt.QtCore import QSettings' \
+                '' \
+                'settings = QSettings("QGIS", "QGIS3")' \
+                'if not settings.contains("qgis_mcp/autostart"):' \
+                '    settings.setValue("qgis_mcp/autostart", True)' \
+                'if not settings.contains("qgis_mcp/port"):' \
+                '    settings.setValue("qgis_mcp/port", 9876)' \
+                'settings.sync()' \
+                > ${SETTINGS_DIR}/startup.py
+
+              echo "MCP plugin installed and settings seeded for ${NB_USER}"
+          volumeMounts:
+            - name: home
+              mountPath: /home/{{ .Values.jupyter.nbUser }}
+          {{- with .Values.mcp.initContainer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
       containers:
         - name: qgis
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -46,6 +102,33 @@ spec:
           volumeMounts:
             - name: home
               mountPath: /home/{{ .Values.jupyter.nbUser }}
+      {{- if .Values.mcp.sidecar.enabled }}
+        - name: mcp-server
+          image: "{{ .Values.mcp.sidecar.image.repository }}:{{ .Values.mcp.sidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.sidecar.image.pullPolicy | default "IfNotPresent" }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              uv pip install "qgis-mcp @ git+https://github.com/nkarasiak/qgis-mcp.git@main"
+              exec uv run python -m qgis_mcp.server
+          env:
+            - name: QGIS_MCP_TRANSPORT
+              value: streamable-http
+            - name: QGIS_MCP_HOST
+              value: "127.0.0.1"
+            - name: QGIS_MCP_PORT
+              value: "9876"
+          ports:
+            - name: mcp-http
+              containerPort: {{ .Values.mcp.sidecar.httpPort }}
+              protocol: TCP
+          {{- with .Values.mcp.sidecar.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
       volumes:
         - name: home
           persistentVolumeClaim:

@@ -18,6 +18,28 @@ service:
     enabled: false
     port: 5678
 
+mcp:
+  initContainer:
+    enabled: false
+    image: busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+    pluginRepo: https://github.com/nkarasiak/qgis-mcp.git
+    resources: {}
+  sidecar:
+    enabled: false
+    image:
+      repository: ghcr.io/astral-sh/uv
+      tag: "0.6.11-alpine"
+      pullPolicy: IfNotPresent
+    httpPort: 8000
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
 ingress:
   enabled: true
   host: qgis.example.local
