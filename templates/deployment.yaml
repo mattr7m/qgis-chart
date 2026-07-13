@@ -8,6 +8,10 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.replicaCount | default 1 }}
+  strategy:
+    # the home PVC is ReadWriteOnce: a surge pod on another node deadlocks on
+    # Multi-Attach, so the old pod must terminate before the new one starts
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: qgis

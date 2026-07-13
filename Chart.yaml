@@ -2,5 +2,5 @@ apiVersion: v2
 name: qgis
 description: QGIS web application (JupyterLab + noVNC) behind Traefik
 type: application
-version: 0.2.0
+version: 0.2.1
 appVersion: "ltr"
