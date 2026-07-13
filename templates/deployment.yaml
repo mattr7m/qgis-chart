@@ -31,7 +31,7 @@ spec:
             - -c
             - |
               set -e
-              NB_USER={{ .Values.jupyter.nbUser }}
+              NB_USER={{ .Values.nbUser }}
               HOME_DIR=/home/${NB_USER}
               PLUGINS_DIR=${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default/python/plugins
               SETTINGS_DIR=${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default
@@ -71,7 +71,7 @@ spec:
               echo "MCP plugin installed and settings seeded for ${NB_USER}"
           volumeMounts:
             - name: home
-              mountPath: /home/{{ .Values.jupyter.nbUser }}
+              mountPath: /home/{{ .Values.nbUser }}
           {{- with .Values.mcp.initContainer.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -83,25 +83,25 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: NB_USER
-              value: {{ .Values.jupyter.nbUser | quote }}
+              value: {{ .Values.nbUser | quote }}
             - name: NB_UID
-              value: {{ .Values.jupyter.nbUid | quote }}
+              value: {{ .Values.nbUID | quote }}
             - name: NB_GID
-              value: {{ .Values.jupyter.nbGid | quote }}
+              value: {{ .Values.nbGID | quote }}
             - name: CHOWN_HOME
-              value: {{ .Values.jupyter.chownHome | quote }}
+              value: {{ .Values.chownHome | quote }}
             - name: JUPYTER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.jupyter.authTokenSecretName }}
-                  key: {{ .Values.jupyter.authTokenSecretKey }}
+                  name: {{ .Values.jupyterTokenSecretRef }}
+                  key: {{ .Values.jupyterTokenKey }}
           ports:
             - name: http
               containerPort: 8888
               protocol: TCP
           volumeMounts:
             - name: home
-              mountPath: /home/{{ .Values.jupyter.nbUser }}
+              mountPath: /home/{{ .Values.nbUser }}
       {{- if .Values.mcp.sidecar.enabled }}
         - name: mcp-server
           image: "{{ .Values.mcp.sidecar.image.repository }}:{{ .Values.mcp.sidecar.image.tag }}"
