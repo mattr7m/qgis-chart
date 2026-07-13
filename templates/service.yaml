@@ -13,10 +13,10 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: 8888
       protocol: TCP
-{{- if .Values.service.mcp.enabled }}
-    - name: mcp
+{{- if .Values.mcp.enabled }}
+    - name: mcp-http
       port: {{ .Values.service.mcp.port }}
-      targetPort: {{ .Values.service.mcp.port }}
+      targetPort: mcp-http
       protocol: TCP
 {{- end }}
   selector:

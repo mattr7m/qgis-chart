@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: qgis
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
       app.kubernetes.io/name: qgis
@@ -20,33 +20,113 @@ spec:
     spec:
       serviceAccountName: {{ .Release.Name }}-qgis
       securityContext:
-        fsGroup: 1000
+        fsGroup: {{ .Values.nbGID | int }}
+      {{- if .Values.mcp.enabled }}
+      initContainers:
+        - name: mcp-plugin-install
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "/scripts/init-mcp.sh"]
+          env:
+            - name: NB_USER
+              value: {{ .Values.nbUser | quote }}
+            - name: NB_UID
+              value: {{ .Values.nbUID | quote }}
+            - name: NB_GID
+              value: {{ .Values.nbGID | quote }}
+            - name: PLUGIN_REPO
+              value: {{ .Values.mcp.repo | quote }}
+            - name: PLUGIN_REF
+              value: {{ .Values.mcp.ref | quote }}
+            - name: PLUGIN_PORT
+              value: {{ .Values.mcp.pluginPort | quote }}
+          volumeMounts:
+            - name: home
+              mountPath: /home/{{ .Values.nbUser }}
+            - name: mcp-scripts
+              mountPath: /scripts
+          {{- with .Values.mcp.initContainer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- end }}
       containers:
         - name: qgis
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: NB_USER
-              value: {{ .Values.jupyter.nbUser | quote }}
+              value: {{ .Values.nbUser | quote }}
             - name: NB_UID
-              value: {{ .Values.jupyter.nbUid | quote }}
+              value: {{ .Values.nbUID | quote }}
             - name: NB_GID
-              value: {{ .Values.jupyter.nbGid | quote }}
+              value: {{ .Values.nbGID | quote }}
             - name: CHOWN_HOME
-              value: {{ .Values.jupyter.chownHome | quote }}
+              value: {{ .Values.chownHome | quote }}
             - name: JUPYTER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.jupyter.authTokenSecretName }}
-                  key: {{ .Values.jupyter.authTokenSecretKey }}
+                  name: {{ .Values.jupyterTokenSecretRef }}
+                  key: {{ .Values.jupyterTokenKey }}
           ports:
             - name: http
               containerPort: 8888
               protocol: TCP
           volumeMounts:
             - name: home
-              mountPath: /home/{{ .Values.jupyter.nbUser }}
+              mountPath: /home/{{ .Values.nbUser }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.mcp.enabled }}
+        - name: mcp-server
+          image: "{{ .Values.mcp.server.image.repository }}:{{ .Values.mcp.server.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.server.image.pullPolicy }}
+          command:
+            - uv
+            - run
+            - --no-project
+            - --with
+            - "qgis-mcp @ {{ .Values.mcp.repo }}/archive/{{ .Values.mcp.ref }}.zip"
+            - python
+            - /scripts/run_server.py
+          env:
+            # where the server CONNECTS: the plugin socket, pod-local
+            - name: QGIS_MCP_HOST
+              value: "127.0.0.1"
+            - name: QGIS_MCP_PORT
+              value: {{ .Values.mcp.pluginPort | quote }}
+            # where the server LISTENS (streamable-HTTP, path /mcp)
+            - name: MCP_LISTEN_HOST
+              value: "0.0.0.0"
+            - name: MCP_LISTEN_PORT
+              value: {{ .Values.mcp.server.listenPort | quote }}
+          ports:
+            - name: mcp-http
+              containerPort: {{ .Values.mcp.server.listenPort }}
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: mcp-http
+            # uv resolves the qgis-mcp env from the network on start
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 60
+          volumeMounts:
+            - name: mcp-scripts
+              mountPath: /scripts
+          {{- with .Values.mcp.server.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: home
           persistentVolumeClaim:
             claimName: qgis-home
+        {{- if .Values.mcp.enabled }}
+        - name: mcp-scripts
+          configMap:
+            name: qgis-mcp-scripts
+        {{- end }}

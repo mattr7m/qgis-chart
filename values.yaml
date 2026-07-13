@@ -3,24 +3,59 @@ image:
   tag: ltr
   pullPolicy: IfNotPresent
 
-jupyter:
-  nbUser: qgis
-  nbUid: 1000
-  nbGid: 1000
-  chownHome: true
-  authTokenSecretName: jupyterlab-token
-  authTokenSecretKey: token
+replicaCount: 1
+
+# JupyterLab/NB user the image runs as; the home PVC mounts at /home/<nbUser>
+nbUser: qgis
+nbUID: "1000"
+nbGID: "1000"
+chownHome: true
+
+# Secret (name + key) holding the JupyterLab auth token; referenced, never valued
+jupyterTokenSecretRef: jupyterlab-token
+jupyterTokenKey: token
 
 service:
   type: ClusterIP
   port: 8888
   mcp:
-    enabled: false
-    port: 5678
+    # Client-facing Service port for the MCP endpoint; only exposed when
+    # mcp.enabled. Cluster-internal only — never routed on the Ingress.
+    port: 8000
+
+# qgis-mcp surface (nkarasiak/qgis-mcp): an init container installs the QGIS
+# plugin into the profile PVC and seeds its socket-server autostart; a sidecar
+# runs the FastMCP server (streamable-HTTP) bridging clients to that socket.
+mcp:
+  enabled: false
+  repo: https://github.com/nkarasiak/qgis-mcp
+  # Git ref used for BOTH the plugin install and the sidecar server so the two
+  # halves stay in lockstep. Branch or tag (the init container clones with
+  # --branch; a bare commit SHA will not work there).
+  ref: main
+  # TCP socket the QGIS plugin serves on — pod-local only, never on a Service
+  pluginPort: 9876
+  server:
+    # Port the FastMCP sidecar LISTENs on (path /mcp); distinct from
+    # pluginPort, which is where it CONNECTs
+    listenPort: 8000
+    image:
+      repository: ghcr.io/astral-sh/uv
+      tag: 0.11.28-python3.12-trixie-slim
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+  initContainer:
+    resources: {}
 
 ingress:
   enabled: true
   host: qgis.example.local
+  className: traefik
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
