@@ -1,0 +1,19 @@
+{{- if .Values.mcp.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qgis-mcp-scripts
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  init-mcp.sh: |
+{{ .Files.Get "files/mcp/init-mcp.sh" | indent 4 }}
+  seed_ini.py: |
+{{ .Files.Get "files/mcp/seed_ini.py" | indent 4 }}
+  qgis_startup.py: |
+{{ .Files.Get "files/mcp/qgis_startup.py" | indent 4 }}
+  run_server.py: |
+{{ .Files.Get "files/mcp/run_server.py" | indent 4 }}
+{{- end }}

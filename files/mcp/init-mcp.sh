@@ -1,0 +1,33 @@
+#!/bin/sh
+# Install the qgis-mcp plugin into the QGIS profile (on the home PVC) and seed
+# the settings that bring its socket server up with QGIS. Runs in the main
+# QGIS image (has git + python3). Idempotent: re-runs on every pod start and
+# refreshes the plugin to ${PLUGIN_REF}.
+set -eu
+
+: "${NB_USER:?}" "${NB_UID:?}" "${NB_GID:?}"
+: "${PLUGIN_REPO:?}" "${PLUGIN_REF:?}" "${PLUGIN_PORT:?}"
+
+HOME_DIR="/home/${NB_USER}"
+PROFILE_DIR="${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default"
+PLUGINS_DIR="${PROFILE_DIR}/python/plugins"
+INI_FILE="${PROFILE_DIR}/QGIS/QGIS3.ini"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+git clone --quiet --depth 1 --branch "${PLUGIN_REF}" "${PLUGIN_REPO}" "${tmp}/qgis-mcp"
+
+mkdir -p "${PLUGINS_DIR}"
+rm -rf "${PLUGINS_DIR}/qgis_mcp_plugin"
+cp -r "${tmp}/qgis-mcp/qgis_mcp_plugin" "${PLUGINS_DIR}/qgis_mcp_plugin"
+
+# Enable the plugin + socket-server autostart in the profile's QGIS3.ini
+mkdir -p "$(dirname "${INI_FILE}")"
+touch "${INI_FILE}"
+python3 /scripts/seed_ini.py "${INI_FILE}" "${PLUGIN_PORT}"
+
+# PyQGIS fallback that starts the plugin's server if the settings route fails
+cp /scripts/qgis_startup.py "${PROFILE_DIR}/python/startup.py"
+
+chown -R "${NB_UID}:${NB_GID}" "${HOME_DIR}/.local/share/QGIS"
+echo "qgis-mcp plugin (${PLUGIN_REF}) installed; autostart seeded, socket port ${PLUGIN_PORT}"
