@@ -124,6 +124,29 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+        - name: desktop-kicker
+          image: "{{ .Values.mcp.server.image.repository }}:{{ .Values.mcp.server.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.server.image.pullPolicy }}
+          command: ["uv", "run", "--no-project", "python", "/scripts/session_kicker.py"]
+          env:
+            - name: JUPYTER_URL
+              value: "http://127.0.0.1:8888"
+            - name: JUPYTER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jupyterTokenSecretRef }}
+                  key: {{ .Values.jupyterTokenKey }}
+            - name: QGIS_MCP_PORT
+              value: {{ .Values.mcp.pluginPort | quote }}
+            - name: KICK_INTERVAL
+              value: {{ .Values.mcp.kicker.intervalSeconds | quote }}
+          volumeMounts:
+            - name: mcp-scripts
+              mountPath: /scripts
+          {{- with .Values.mcp.kicker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         {{- end }}
       volumes:
         - name: home

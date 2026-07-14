@@ -13,6 +13,17 @@ PROFILE_DIR="${HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default"
 PLUGINS_DIR="${PROFILE_DIR}/python/plugins"
 INI_FILE="${PROFILE_DIR}/QGIS/QGIS3.ini"
 
+# Populate the home from the image skeleton before writing anything: the
+# image's own populate hook (start-notebook.d/10-populate.sh) only copies
+# top-level entries missing from the home, so if this script created .config/
+# .local first, the skel's Xfce defaults would be skipped forever. No-clobber
+# merge keeps existing user files authoritative.
+if [ -d /var/backups/skel ] && [ ! -f "${HOME_DIR}/.populated" ]; then
+  cp -an /var/backups/skel/. "${HOME_DIR}/"
+  date -uIseconds > "${HOME_DIR}/.populated"
+  echo "home populated from image skel"
+fi
+
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
 git clone --quiet --depth 1 --branch "${PLUGIN_REF}" "${PLUGIN_REPO}" "${tmp}/qgis-mcp"
@@ -29,5 +40,11 @@ python3 /scripts/seed_ini.py "${INI_FILE}" "${PLUGIN_PORT}"
 # PyQGIS fallback that starts the plugin's server if the settings route fails
 cp /scripts/qgis_startup.py "${PROFILE_DIR}/python/startup.py"
 
-chown -R "${NB_UID}:${NB_GID}" "${HOME_DIR}/.local/share/QGIS"
+# Launch QGIS with the Xfce session (the image itself uses ~/.config/autostart
+# entries; the session is started headlessly by the desktop-kicker container)
+mkdir -p "${HOME_DIR}/.config/autostart"
+cp /scripts/qgis-autostart.desktop "${HOME_DIR}/.config/autostart/qgis-mcp.desktop"
+
+chown -R "${NB_UID}:${NB_GID}" "${HOME_DIR}/.local/share/QGIS" \
+  "${HOME_DIR}/.config/autostart" 2>/dev/null || true
 echo "qgis-mcp plugin (${PLUGIN_REF}) installed; autostart seeded, socket port ${PLUGIN_PORT}"

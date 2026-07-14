@@ -5,11 +5,16 @@ image:
 
 replicaCount: 1
 
-# JupyterLab/NB user the image runs as; the home PVC mounts at /home/<nbUser>
-nbUser: qgis
+# JupyterLab/NB user the image runs as; the home PVC mounts at /home/<nbUser>.
+# Must stay "jovyan": the container runs non-root, so the b-data entrypoint
+# cannot remap the user — a different value silently lands the PVC on an
+# unused path while the real home stays pod-ephemeral (data loss).
+nbUser: jovyan
 nbUID: "1000"
 nbGID: "1000"
-chownHome: true
+# CHOWN_HOME needs a root entrypoint; non-root it only warns. fsGroup + the
+# init container cover PVC ownership instead.
+chownHome: false
 
 # Secret (name + key) holding the JupyterLab auth token; referenced, never valued
 jupyterTokenSecretRef: jupyterlab-token
@@ -51,6 +56,18 @@ mcp:
         memory: 1Gi
   initContainer:
     resources: {}
+  # Starts the desktop session headlessly (first request to the JupyterLab
+  # /desktop proxy route launches TurboVNC + Xfce; Xfce autostart launches
+  # QGIS) and re-kicks it whenever the plugin socket is down. Separate
+  # container so JUPYTER_TOKEN never enters the MCP-exposed server's env.
+  kicker:
+    intervalSeconds: 60
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
 
 ingress:
   enabled: true
