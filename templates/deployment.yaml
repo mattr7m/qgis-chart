@@ -140,9 +140,16 @@ spec:
               value: {{ .Values.mcp.pluginPort | quote }}
             - name: KICK_INTERVAL
               value: {{ .Values.mcp.kicker.intervalSeconds | quote }}
+            - name: NB_HOME
+              value: /home/{{ .Values.nbUser }}
           volumeMounts:
             - name: mcp-scripts
               mountPath: /scripts
+            # diagnostics only: lets the kicker surface the Xfce/QGIS session
+            # logs (~/.vnc/*.log), which are otherwise invisible to kubectl
+            - name: home
+              mountPath: /home/{{ .Values.nbUser }}
+              readOnly: true
           {{- with .Values.mcp.kicker.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
