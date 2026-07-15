@@ -15,6 +15,14 @@ port = sys.argv[2]
 wanted = {
     "PythonPlugins": {"qgis_mcp_plugin": "true"},
     "qgis_mcp": {"autostart": "true", "port": port, "first_run": "false"},
+    # From the image skel's default QGIS3.ini, which 70-qgis.sh only copies if
+    # QGIS3.ini is absent — and this script creates it first. Without this
+    # PYTHONPATH append, desktop QGIS's embedded Python cannot import the
+    # `qgis` module ("Couldn't load SIP module") and no Python plugin loads.
+    "qgis": {
+        "customEnvVars": '"append|PYTHONPATH=:/usr/lib/python3/dist-packages"',
+        "customEnvVarsUse": "true",
+    },
 }
 
 with open(path, encoding="utf-8") as fh:
