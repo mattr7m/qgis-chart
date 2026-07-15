@@ -21,6 +21,14 @@ spec:
       labels:
         app.kubernetes.io/name: qgis
         app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- if .Values.mcp.enabled }}
+      annotations:
+        # roll the pod when the MCP scripts change: they ship via ConfigMap,
+        # and the init container that consumes them only runs on pod start, so
+        # without this a scripts-only change (e.g. a seed_ini fix) never
+        # reaches a running pod until an unrelated restart
+        checksum/mcp-scripts: {{ include (print $.Template.BasePath "/mcp-scripts.yaml") . | sha256sum }}
+      {{- end }}
     spec:
       serviceAccountName: {{ .Release.Name }}-qgis
       securityContext:
