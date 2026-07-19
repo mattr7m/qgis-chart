@@ -40,11 +40,24 @@ python3 /scripts/seed_ini.py "${INI_FILE}" "${PLUGIN_PORT}"
 # PyQGIS fallback that starts the plugin's server if the settings route fails
 cp /scripts/qgis_startup.py "${PROFILE_DIR}/python/startup.py"
 
-# Launch QGIS with the Xfce session (the image itself uses ~/.config/autostart
-# entries; the session is started headlessly by the desktop-kicker container)
-mkdir -p "${HOME_DIR}/.config/autostart"
-cp /scripts/qgis-autostart.desktop "${HOME_DIR}/.config/autostart/qgis-mcp.desktop"
+# Run QGIS under a supervisor so a crash relaunches it within the live Xfce
+# session (the plugin's autostart re-fires each launch, so the qgis-mcp socket
+# self-heals in seconds). The desktop-kicker only brings up / respawns the whole
+# session; an in-process QGIS crash is this supervisor's job. The Xfce autostart
+# launches the supervisor at session start.
+mkdir -p "${HOME_DIR}/.local/bin" "${HOME_DIR}/.config/autostart"
+cp /scripts/qgis-supervise.sh "${HOME_DIR}/.local/bin/qgis-mcp-supervise.sh"
+chmod 0755 "${HOME_DIR}/.local/bin/qgis-mcp-supervise.sh"
+cat > "${HOME_DIR}/.config/autostart/qgis-mcp.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=QGIS (qgis-mcp autostart + crash supervisor)
+Comment=Installed by qgis-chart; runs QGIS under a restart loop so the qgis-mcp socket self-heals on crash
+Exec=${HOME_DIR}/.local/bin/qgis-mcp-supervise.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true
+DESKTOP
 
 chown -R "${NB_UID}:${NB_GID}" "${HOME_DIR}/.local/share/QGIS" \
-  "${HOME_DIR}/.config/autostart" 2>/dev/null || true
+  "${HOME_DIR}/.local/bin" "${HOME_DIR}/.config/autostart" 2>/dev/null || true
 echo "qgis-mcp plugin (${PLUGIN_REF}) installed; autostart seeded, socket port ${PLUGIN_PORT}"
