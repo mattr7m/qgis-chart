@@ -18,6 +18,6 @@ data:
 {{ .Files.Get "files/mcp/run_server.py" | indent 4 }}
   session_kicker.py: |
 {{ .Files.Get "files/mcp/session_kicker.py" | indent 4 }}
-  qgis-autostart.desktop: |
-{{ .Files.Get "files/mcp/qgis-autostart.desktop" | indent 4 }}
+  qgis-supervise.sh: |
+{{ .Files.Get "files/mcp/qgis-supervise.sh" | indent 4 }}
 {{- end }}

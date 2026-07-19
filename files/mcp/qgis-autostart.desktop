@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=QGIS (qgis-mcp autostart)
-Comment=Installed by qgis-chart so the qgis-mcp plugin socket comes up with the session
-Exec=qgis
-Terminal=false
-X-GNOME-Autostart-enabled=true

@@ -44,11 +44,24 @@ def kick():
         return resp.status
 
 
+def _tail(path, tag, n=25):
+    try:
+        with open(path, errors="replace") as fh:
+            lines = fh.readlines()[-n:]
+    except OSError as exc:
+        print(f"[diag] cannot read {path}: {exc}", flush=True)
+        return
+    print(f"[diag] tail of {path}:", flush=True)
+    for line in lines:
+        print(f"[{tag}] " + line.rstrip()[:300], flush=True)
+
+
 def diagnostics():
     """The Xfce/QGIS session logs to files on the home PVC that kubectl logs
     cannot reach; surface the relevant tails here (read-only mount)."""
     checks = {
         "autostart entry": f"{HOME_DIR}/.config/autostart/qgis-mcp.desktop",
+        "supervisor script": f"{HOME_DIR}/.local/bin/qgis-mcp-supervise.sh",
         "plugin __init__": f"{HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default"
         "/python/plugins/qgis_mcp_plugin/__init__.py",
         "profile ini": f"{HOME_DIR}/.local/share/QGIS/QGIS3/profiles/default"
@@ -56,23 +69,29 @@ def diagnostics():
     }
     for label, path in checks.items():
         print(f"[diag] {label}: {'present' if os.path.exists(path) else 'MISSING'} ({path})", flush=True)
+    # supervisor log shows QGIS crash/restart cycles; xsession-errors has the
+    # actual crash trace; the VNC log shows session/display health
+    sup = f"{HOME_DIR}/.qgis-mcp-supervise.log"
+    if os.path.exists(sup):
+        _tail(sup, "sup", n=10)
+    xse = f"{HOME_DIR}/.xsession-errors"
+    if os.path.exists(xse):
+        _tail(xse, "xse", n=25)
     vnc_logs = sorted(glob.glob(f"{HOME_DIR}/.vnc/*.log"), key=os.path.getmtime)
-    if not vnc_logs:
+    if vnc_logs:
+        _tail(vnc_logs[-1], "vnc", n=15)
+    else:
         print("[diag] no ~/.vnc/*.log yet — VNC session has not started", flush=True)
-        return
-    newest = vnc_logs[-1]
-    try:
-        with open(newest, errors="replace") as fh:
-            tail = fh.readlines()[-40:]
-        print(f"[diag] tail of {newest}:", flush=True)
-        for line in tail:
-            print("[vnc] " + line.rstrip()[:300], flush=True)
-    except OSError as exc:
-        print(f"[diag] cannot read {newest}: {exc}", flush=True)
 
+
+# after this many consecutive down-kicks with a healthy /desktop, call out the
+# "session up but socket down" state explicitly (QGIS crashed inside a live
+# session — the in-session supervisor should be relaunching it)
+SESSION_UP_WARN = int(os.environ.get("SESSION_UP_WARN", "3"))
 
 was_up = None
 downs = 0
+warned = False
 while True:
     try:
         up = socket_up()
@@ -85,10 +104,23 @@ while True:
                 f"plugin socket down; kicked {JUPYTER_URL}/desktop/ -> HTTP {status}",
                 flush=True,
             )
+            # /desktop 200 means the Xfce/VNC session is alive, so kicking it
+            # does nothing for a crashed QGIS — that is the supervisor's job.
+            # Surface the distinction so this state is never silently unrecovered.
+            if status == 200 and downs >= SESSION_UP_WARN and not warned:
+                print(
+                    "WARN: desktop session healthy but plugin socket down "
+                    f"{downs} kicks — QGIS is not running in a live session; "
+                    "the in-session supervisor should relaunch it. If this "
+                    "persists, the supervisor or the session is wedged.",
+                    flush=True,
+                )
+                warned = True
             if HOME_DIR and downs % DIAG_EVERY == 0:
                 diagnostics()
         else:
             downs = 0
+            warned = False
         was_up = up
     except Exception as exc:  # keep kicking through transient jupyter errors
         print(f"kick failed: {exc}", flush=True)
