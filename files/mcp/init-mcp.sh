@@ -58,6 +58,11 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 DESKTOP
 
+# Render output dir for the 3D gallery: create it user-owned before any
+# subPath mount would materialize it root-owned on a fresh PVC
+mkdir -p "${HOME_DIR}/qgis3d"
+
 chown -R "${NB_UID}:${NB_GID}" "${HOME_DIR}/.local/share/QGIS" \
-  "${HOME_DIR}/.local/bin" "${HOME_DIR}/.config/autostart" 2>/dev/null || true
+  "${HOME_DIR}/.local/bin" "${HOME_DIR}/.config/autostart" \
+  "${HOME_DIR}/qgis3d" 2>/dev/null || true
 echo "qgis-mcp plugin (${PLUGIN_REF}) installed; autostart seeded, socket port ${PLUGIN_PORT}"

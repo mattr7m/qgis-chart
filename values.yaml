@@ -27,6 +27,41 @@ service:
     # Client-facing Service port for the MCP endpoint; only exposed when
     # mcp.enabled. Cluster-internal only — never routed on the Ingress.
     port: 8000
+  gallery:
+    # Service port for the 3D render gallery; only exposed when gallery.enabled
+    port: 8080
+
+# Static web gallery for the QGIS 3D renders (Qgis2threejs exports are web
+# pages). Served by an nginx sidecar IN the qgis pod from the home PVC's
+# qgis3d/ subPath, read-only — a sidecar rather than a separate Deployment so
+# the RWO home volume never gains a second pod consumer (cross-node scheduling
+# of a second consumer deadlocks on Multi-Attach; observed live on this claim).
+# The qgis3d dir itself is created by the mcp init container, so gallery
+# assumes mcp.enabled in practice (both are enabled together in ops values).
+gallery:
+  enabled: false
+  image:
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.27-alpine  # ops values pin by digest
+    pullPolicy: IfNotPresent
+  # nginx listens non-root on this container port
+  listenPort: 8080
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  ingress:
+    enabled: false
+    host: qgis-3d.example.local
+    className: traefik
+    annotations: {}
+    tls: true
+    # Name of a traefik.io/v1alpha1 Middleware (same namespace) applying auth
+    # to the gallery host, e.g. a basicAuth middleware whose htpasswd Secret is
+    # created out of band. Empty = no auth middleware annotation (open).
+    basicAuthMiddleware: ""
 
 # qgis-mcp surface (nkarasiak/qgis-mcp): an init container installs the QGIS
 # plugin into the profile PVC and seeds its socket-server autostart; a sidecar
