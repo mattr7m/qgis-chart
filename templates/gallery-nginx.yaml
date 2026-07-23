@@ -1,0 +1,24 @@
+{{- if .Values.gallery.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qgis-gallery-nginx
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  default.conf: |
+    # Render gallery: static serve of the home PVC's qgis3d/ subPath.
+    # autoindex on — it is a gallery; Qgis2threejs exports are plain html
+    # (e.g. <name>_scene.html) alongside shared js/css assets.
+    server {
+        listen {{ .Values.gallery.listenPort }};
+        server_name _;
+        root /srv/qgis3d;
+        autoindex on;
+        location / {
+            try_files $uri $uri/ =404;
+        }
+    }
+{{- end }}
