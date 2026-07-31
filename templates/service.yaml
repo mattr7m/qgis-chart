@@ -19,6 +19,12 @@ spec:
       targetPort: mcp-http
       protocol: TCP
 {{- end }}
+{{- if .Values.gallery.enabled }}
+    - name: gallery-http
+      port: {{ .Values.service.gallery.port }}
+      targetPort: gallery-http
+      protocol: TCP
+{{- end }}
   selector:
     app.kubernetes.io/name: qgis
     app.kubernetes.io/instance: {{ .Release.Name }}

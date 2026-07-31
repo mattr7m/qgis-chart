@@ -1,0 +1,39 @@
+{{- if and .Values.gallery.enabled .Values.gallery.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qgis-3d
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    {{- with .Values.gallery.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.gallery.ingress.basicAuthMiddleware }}
+    # Traefik CRD-provider middleware reference: <namespace>-<name>@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $.Release.Namespace | default "qgis" }}-{{ . }}@kubernetescrd
+    {{- end }}
+spec:
+  {{- with .Values.gallery.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.gallery.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.gallery.ingress.host }}
+      secretName: qgis-3d-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.gallery.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qgis
+                port:
+                  name: gallery-http
+{{- end }}
