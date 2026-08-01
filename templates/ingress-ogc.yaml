@@ -1,0 +1,48 @@
+{{- if and .Values.ogc.enabled .Values.gallery.enabled .Values.gallery.ingress.enabled -}}
+{{/* Separate Ingress (same host) so the stripPrefix middleware applies only
+     to the /ogc router — Traefik middleware annotations are per-router, and
+     stripping /ogc on the gallery router would break gallery paths. */}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qgis-3d-ogc
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    {{- with .Values.gallery.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- $mw := list }}
+    {{- with .Values.gallery.ingress.basicAuthMiddleware }}
+    {{- $mw = append $mw (printf "%s-%s@kubernetescrd" ($.Release.Namespace | default "qgis") .) }}
+    {{- end }}
+    {{- with .Values.ogc.stripPrefixMiddleware }}
+    {{- $mw = append $mw (printf "%s-%s@kubernetescrd" ($.Release.Namespace | default "qgis") .) }}
+    {{- end }}
+    {{- with $mw }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ join "," . }}
+    {{- end }}
+spec:
+  {{- with .Values.gallery.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.gallery.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.gallery.ingress.host }}
+      secretName: qgis-3d-tls
+  {{- end }}
+  rules:
+    - host: {{ .Values.gallery.ingress.host }}
+      http:
+        paths:
+          - path: /ogc
+            pathType: Prefix
+            backend:
+              service:
+                name: qgis
+                port:
+                  name: ogc-http
+{{- end }}

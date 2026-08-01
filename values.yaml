@@ -30,6 +30,9 @@ service:
   gallery:
     # Service port for the 3D render gallery; only exposed when gallery.enabled
     port: 8080
+  ogc:
+    # Service port for the QGIS Server WMS endpoint; only exposed when ogc.enabled
+    port: 8010
 
 # Static web gallery for the QGIS 3D renders (Qgis2threejs exports are web
 # pages). Served by an nginx sidecar IN the qgis pod from the home PVC's
@@ -62,6 +65,30 @@ gallery:
     # to the gallery host, e.g. a basicAuth middleware whose htpasswd Secret is
     # created out of band. Empty = no auth middleware annotation (open).
     basicAuthMiddleware: ""
+
+# QGIS Server (OGC WMS) sidecar — the publishing surface (qgis-ops#3): serves
+# a published project from the home PVC as WMS, exposed at /ogc on the gallery
+# host behind the same basic-auth (the gallery's 2D web map consumes it
+# same-origin). A sidecar in the qgis pod for the same reason as the gallery:
+# the RWO home volume must never gain a second pod consumer. Uses the main
+# QGIS image's qgis_mapserver (the standalone OGC server; b-data ships it with
+# a PYTHONPATH wrapper) — no extra image.
+ogc:
+  enabled: false
+  # .qgz/.qgs on the home PVC to publish; REQUIRED when enabled. The desktop
+  # QGIS may hold the same file open — the server re-reads it on change.
+  projectFile: ""
+  listenPort: 8010
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  # Traefik Middleware (same namespace) that strips /ogc before the request
+  # reaches qgis_mapserver, which serves at /. Created in ops manifests
+  # alongside the basic-auth middleware. Empty disables the annotation.
+  stripPrefixMiddleware: ""
 
 # qgis-mcp surface (nkarasiak/qgis-mcp): an init container installs the QGIS
 # plugin into the profile PVC and seeds its socket-server autostart; a sidecar
