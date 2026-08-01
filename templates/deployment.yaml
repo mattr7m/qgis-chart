@@ -194,6 +194,48 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         {{- end }}
+        {{- if .Values.ogc.enabled }}
+        - name: ogc-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # qgis_mapserver: QGIS's standalone OGC server (b-data wraps it with
+          # the PYTHONPATH the desktop needs); serves the project at any path,
+          # the /ogc prefix is stripped by the Traefik middleware
+          command: ["qgis_mapserver", "0.0.0.0:{{ .Values.ogc.listenPort }}"]
+          env:
+            - name: QGIS_PROJECT_FILE
+              value: {{ required "ogc.projectFile is required when ogc.enabled" .Values.ogc.projectFile | quote }}
+            # headless rendering, no X server in this container
+            - name: QT_QPA_PLATFORM
+              value: offscreen
+            # settings/cache to the writable container overlay — the home
+            # mount below is read-only by design
+            - name: QGIS_CUSTOM_CONFIG_PATH
+              value: /tmp/qgis-server
+            - name: XDG_CACHE_HOME
+              value: /tmp/qgis-server-cache
+            - name: QGIS_SERVER_LOG_STDERR
+              value: "1"
+          ports:
+            - name: ogc-http
+              containerPort: {{ .Values.ogc.listenPort }}
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: ogc-http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            # whole home, read-only: the published project references data
+            # files across the home tree; the server only reads
+            - name: home
+              mountPath: /home/{{ .Values.nbUser }}
+              readOnly: true
+          {{- with .Values.ogc.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: home
           persistentVolumeClaim:

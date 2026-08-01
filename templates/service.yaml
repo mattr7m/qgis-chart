@@ -25,6 +25,12 @@ spec:
       targetPort: gallery-http
       protocol: TCP
 {{- end }}
+{{- if .Values.ogc.enabled }}
+    - name: ogc-http
+      port: {{ .Values.service.ogc.port }}
+      targetPort: ogc-http
+      protocol: TCP
+{{- end }}
   selector:
     app.kubernetes.io/name: qgis
     app.kubernetes.io/instance: {{ .Release.Name }}
