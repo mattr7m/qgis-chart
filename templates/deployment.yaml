@@ -216,6 +216,11 @@ spec:
               value: /tmp/qgis-server-cache
             - name: QGIS_SERVER_LOG_STDERR
               value: "1"
+            # serve the valid layers even when the project carries an invalid
+            # one (e.g. a leftover memory/scratch layer) — without this the
+            # server rejects the WHOLE project with "Layer(s) not valid"
+            - name: QGIS_SERVER_IGNORE_BAD_LAYERS
+              value: "1"
           ports:
             - name: ogc-http
               containerPort: {{ .Values.ogc.listenPort }}
