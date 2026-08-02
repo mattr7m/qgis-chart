@@ -37,8 +37,13 @@ mkdir -p "$(dirname "${INI_FILE}")"
 touch "${INI_FILE}"
 python3 /scripts/seed_ini.py "${INI_FILE}" "${PLUGIN_PORT}"
 
-# PyQGIS fallback that starts the plugin's server if the settings route fails
-cp /scripts/qgis_startup.py "${PROFILE_DIR}/python/startup.py"
+# Headless hardening + autostart fallback. QGIS (verified 3.44 source,
+# QgsPythonUtilsImpl::doCustomImports) loads user startup.py from
+# QStandardPaths AppDataLocation — ~/.local/share/QGIS/QGIS3/startup.py —
+# NOT the profile's python/ dir (a widely-repeated wrong path where this
+# was previously installed and silently never executed).
+cp /scripts/qgis_startup.py "${HOME_DIR}/.local/share/QGIS/QGIS3/startup.py"
+rm -f "${PROFILE_DIR}/python/startup.py"
 
 # Run QGIS under a supervisor so a crash relaunches it within the live Xfce
 # session (the plugin's autostart re-fires each launch, so the qgis-mcp socket
