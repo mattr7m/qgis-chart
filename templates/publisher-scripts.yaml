@@ -1,0 +1,13 @@
+{{- if .Values.publish.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qgis-publisher
+  namespace: {{ .Release.Namespace | default "qgis" }}
+  labels:
+    app.kubernetes.io/name: qgis
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  publisher.py: |
+{{ .Files.Get "files/publish/publisher.py" | indent 4 }}
+{{- end }}

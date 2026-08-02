@@ -21,7 +21,7 @@ spec:
       labels:
         app.kubernetes.io/name: qgis
         app.kubernetes.io/instance: {{ .Release.Name }}
-      {{- if or .Values.mcp.enabled .Values.gallery.enabled }}
+      {{- if or .Values.mcp.enabled .Values.gallery.enabled .Values.publish.enabled }}
       annotations:
         # roll the pod when ConfigMap-shipped config changes: consumers only
         # read it at container/init start, so without these a config-only
@@ -31,6 +31,9 @@ spec:
         {{- end }}
         {{- if .Values.gallery.enabled }}
         checksum/gallery-nginx: {{ include (print $.Template.BasePath "/gallery-nginx.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if .Values.publish.enabled }}
+        checksum/publisher: {{ include (print $.Template.BasePath "/publisher-scripts.yaml") . | sha256sum }}
         {{- end }}
       {{- end }}
     spec:
@@ -241,6 +244,38 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
         {{- end }}
+        {{- if .Values.publish.enabled }}
+        - name: publisher
+          image: "{{ .Values.mcp.server.image.repository }}:{{ .Values.mcp.server.image.tag }}"
+          imagePullPolicy: {{ .Values.mcp.server.image.pullPolicy }}
+          command: ["uv", "run", "--no-project", "python", "/scripts/publisher.py"]
+          env:
+            - name: PUBLISH_SOURCE
+              value: {{ .Values.publish.source | quote }}
+            - name: PUBLISH_DEST
+              value: {{ .Values.publish.dest | quote }}
+            - name: PUBLISH_DEBOUNCE_SECONDS
+              value: {{ .Values.publish.debounceSeconds | quote }}
+            - name: PUBLISH_POLL_SECONDS
+              value: {{ .Values.publish.pollSeconds | quote }}
+          volumeMounts:
+            - name: publisher-scripts
+              mountPath: /scripts
+            # source side: whole home read-only (the live project is a single
+            # file that QGIS replaces on save — a subPath file mount would go
+            # stale on inode change)
+            - name: home
+              mountPath: /home/{{ .Values.nbUser }}
+              readOnly: true
+            # dest side: ONLY published/ is writable (dest + trigger file)
+            - name: home
+              mountPath: /pub
+              subPath: published
+          {{- with .Values.publish.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
       volumes:
         - name: home
           persistentVolumeClaim:
@@ -254,4 +289,9 @@ spec:
         - name: gallery-nginx
           configMap:
             name: qgis-gallery-nginx
+        {{- end }}
+        {{- if .Values.publish.enabled }}
+        - name: publisher-scripts
+          configMap:
+            name: qgis-publisher
         {{- end }}
