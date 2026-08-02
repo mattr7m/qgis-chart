@@ -1,6 +1,24 @@
 # Installed as <profile>/python/startup.py by the qgis-chart mcp init
-# container. Fallback for the QgsSettings autostart seed: once plugins are
-# loaded, start the qgis-mcp socket server if it is not already running.
+# container. Two jobs:
+# 1. Replace the GUI bad-layer handler with the silent base-class handler —
+#    this QGIS is driven headlessly over MCP, and the "Handle Unavailable
+#    Layers" dialog (shown UNCONDITIONALLY by the app handler when any layer
+#    in a loading project fails to resolve, e.g. a memory scratch layer)
+#    blocks the event loop forever with nobody to click it, wedging the
+#    plugin socket (qgis-agent#42; reproduced twice). Bad layers are kept
+#    silently instead — the desktop analogue of QGIS_SERVER_IGNORE_BAD_LAYERS.
+# 2. Fallback for the QgsSettings autostart seed: once plugins are loaded,
+#    start the qgis-mcp socket server if it is not already running.
+
+try:
+    from qgis.core import QgsProject, QgsProjectBadLayerHandler
+
+    # keep a module-level reference: setBadLayerHandler does not take
+    # ownership, and a garbage-collected handler crashes QGIS
+    _bad_layer_handler = QgsProjectBadLayerHandler()
+    QgsProject.instance().setBadLayerHandler(_bad_layer_handler)
+except Exception:  # never take QGIS down from a startup hook
+    pass
 
 
 def _ensure_qgis_mcp_server():
