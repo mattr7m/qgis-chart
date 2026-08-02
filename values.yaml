@@ -66,6 +66,26 @@ gallery:
     # created out of band. Empty = no auth middleware annotation (open).
     basicAuthMiddleware: ""
 
+# Debounced 2D publish watcher (qgis-agent tasks/qgis-publish-pipeline.md):
+# copies the live project to the published project once it has been idle for
+# the debounce window; a trigger file forces an immediate publish. Replaces
+# the save-as ritual that repointed the live QGIS session. Sidecar (RWO rule);
+# mounts: home read-only + published/ read-write only.
+publish:
+  enabled: false
+  # both paths are on the home PVC; source is read via the ro mount, dest via
+  # the rw published/ mount
+  source: /home/jovyan/test-qgis-project.qgz
+  dest: /home/jovyan/published/webmap.qgz
+  debounceSeconds: 60
+  pollSeconds: 5
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+
 # QGIS Server (OGC WMS) sidecar — the publishing surface (qgis-ops#3): serves
 # a published project from the home PVC as WMS, exposed at /ogc on the gallery
 # host behind the same basic-auth (the gallery's 2D web map consumes it
