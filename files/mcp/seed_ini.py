@@ -23,6 +23,11 @@ wanted = {
         "customEnvVars": '"append|PYTHONPATH=:/usr/lib/python3/dist-packages"',
         "customEnvVarsUse": "true",
     },
+    # Never prompt about unsaved memory layers on project close/replace — a
+    # modal in this headless session wedges the event loop and the plugin
+    # socket with nobody to click it (qgis-agent#42). Key confirmed in QGIS
+    # resources/qgis_global_settings.ini ([app] section).
+    "app": {"askToSaveMemoryLayers": "false"},
 }
 
 with open(path, encoding="utf-8") as fh:
