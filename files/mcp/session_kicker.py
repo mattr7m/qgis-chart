@@ -74,6 +74,10 @@ def diagnostics():
     sup = f"{HOME_DIR}/.qgis-mcp-supervise.log"
     if os.path.exists(sup):
         _tail(sup, "sup", n=10)
+    # modal watchdog dismissals — names the dialog that would have wedged us
+    mw = f"{HOME_DIR}/.qgis-modal-watchdog.log"
+    if os.path.exists(mw):
+        _tail(mw, "modal", n=10)
     xse = f"{HOME_DIR}/.xsession-errors"
     if os.path.exists(xse):
         _tail(xse, "xse", n=25)
