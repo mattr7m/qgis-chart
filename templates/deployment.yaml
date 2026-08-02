@@ -252,8 +252,12 @@ spec:
           env:
             - name: PUBLISH_SOURCE
               value: {{ .Values.publish.source | quote }}
+            # dest/trigger resolve through the RW /pub mount (subPath
+            # published) — the home mount in this container is read-only
             - name: PUBLISH_DEST
-              value: {{ .Values.publish.dest | quote }}
+              value: "/pub/{{ base .Values.publish.dest }}"
+            - name: PUBLISH_TRIGGER
+              value: "/pub/.publish-now"
             - name: PUBLISH_DEBOUNCE_SECONDS
               value: {{ .Values.publish.debounceSeconds | quote }}
             - name: PUBLISH_POLL_SECONDS

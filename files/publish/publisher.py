@@ -53,11 +53,11 @@ while True:
     try:
         m = src_mtime()
         if os.path.exists(TRIGGER):
+            os.remove(TRIGGER)  # consume first: a failing publish must not hot-loop
             if m is None:
                 print("trigger present but source missing; ignoring", flush=True)
             else:
                 last_published = publish(m, "manual trigger")
-            os.remove(TRIGGER)
         elif m is not None and m != last_published and (time.time() - m) >= DEBOUNCE:
             last_published = publish(m, "debounced change")
     except Exception as exc:  # keep watching through transient I/O errors
